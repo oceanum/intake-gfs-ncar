@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "intake-gfs-ncar"
+version = "0.1.0"
+description = "Intake driver for NCAR GFS forecast data"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+    { name = "Oceanum Developers", email = "developers@oceanum.science" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+dependencies = [
+    "intake>=0.6.0",
+    "xarray>=0.18.0",
+    "cfgrib>=0.9.9",
+    "fsspec>=2021.10.0",
+    "aiohttp>=3.8.0",
+    "dask>=2021.10.0",
+]
+
+[project.optional-dependencies]
+plotting = ["matplotlib", "cartopy"]
+test = ["pytest>=6.0.0", "pytest-cov>=2.12.0"]
+dev = ["black>=21.12b0", "isort>=5.10.0", "mypy>=0.910", "pylint>=2.12.0"]
+
+[project.urls]
+Homepage = "https://github.com/oceanum/intake-gfs-ncar"
+Bug_Tracker = "https://github.com/oceanum/intake-gfs-ncar/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["intake_gfs_ncar*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "-v --cov=intake_gfs_ncar --cov-report=term-missing"
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+
+[tool.black]
+line-length = 88
+target-version = ["py38"]
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
