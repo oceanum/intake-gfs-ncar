@@ -1,0 +1,99 @@
+name: Build Test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build-test:
+    name: Test package build
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install build twine
+    
+    - name: Build package
+      run: python -m build
+    
+    - name: Check distribution
+      run: python -m twine check dist/*
+    
+    - name: Test installation from wheel
+      run: |
+        python -m pip install dist/*.whl
+        python -c "import intake_gfs_ncar; print('Package imported successfully')"
+    
+    - name: Test installation from source
+      run: |
+        python -m pip uninstall -y intake-gfs-ncar
+        python -m pip install dist/*.tar.gz
+        python -c "import intake_gfs_ncar; print('Package from source imported successfully')"
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: dist-${{ github.sha }}
+        path: dist/
+        retention-days: 7
+
+  validate-metadata:
+    name: Validate package metadata
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install validation tools
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install build twine check-manifest
+    
+    - name: Check manifest
+      run: check-manifest
+    
+    - name: Build and validate
+      run: |
+        python -m build
+        python -m twine check dist/*
+    
+    - name: Check long description rendering
+      run: |
+        python -m pip install readme-renderer[md]
+        python -c "
+        import sys
+        from pathlib import Path
+        from readme_renderer.markdown import render
+        
+        readme_path = Path('README.md')
+        if readme_path.exists():
+            content = readme_path.read_text(encoding='utf-8')
+            rendered = render(content)
+            if rendered is None:
+                print('ERROR: README.md failed to render')
+                sys.exit(1)
+            else:
+                print('README.md renders correctly')
+        else:
+            print('No README.md found')
+        "

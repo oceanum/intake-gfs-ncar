@@ -123,15 +123,122 @@ pip install -e '.[dev]'
 ### Running tests
 
 ```bash
+# Run all tests
 pytest
+
+# Run with coverage
+pytest --cov=intake_gfs_ncar --cov-report=term-missing
+
+# Run specific test file
+pytest tests/test_gfs_intake_driver.py
 ```
 
-### Code formatting
+### Code quality
+
+The project uses several tools to maintain code quality:
 
 ```bash
+# Format code
 black .
 isort .
+
+# Lint code
+flake8 .
+
+# Type checking
+mypy intake_gfs_ncar --ignore-missing-imports
+
+# Check package build
+python -m build
+python -m twine check dist/*
+
+# Check manifest
+check-manifest
 ```
+
+### GitHub Actions Workflows
+
+The project includes several GitHub Actions workflows:
+
+- **Tests and Code Quality** (`python-tests.yml`): Runs on every push and PR
+  - Tests on Python 3.9, 3.10, and 3.11
+  - Code formatting, linting, and type checking
+  - Coverage reporting
+
+- **Build Test** (`build-test.yml`): Tests package building on PRs
+  - Validates that the package can be built successfully
+  - Tests installation from both wheel and source distributions
+  - Validates package metadata
+
+- **Build and Release to PyPI** (`release.yml`): Automated releases
+  - Triggers on version tags (e.g., `v0.3.0`)
+  - Builds and publishes to PyPI
+  - Creates GitHub releases with artifacts
+
+### Release Process
+
+This project uses automated releases through GitHub Actions. To create a new release:
+
+1. **Prepare the release** using the release script:
+   ```bash
+   # Dry run to see what would happen
+   python scripts/release.py --version 0.3.0 --dry-run
+   
+   # Actually prepare the release
+   python scripts/release.py --version 0.3.0
+   ```
+
+2. **Push to GitHub** to trigger the release:
+   ```bash
+   git push origin main
+   git push origin v0.3.0
+   ```
+
+3. **Monitor the release** at [GitHub Actions](https://github.com/oceanum/intake-gfs-ncar/actions)
+
+The automated workflow will:
+- Run all tests across supported Python versions
+- Build source and wheel distributions
+- Publish to PyPI using trusted publishing
+- Create a GitHub release with built artifacts
+- Extract release notes from `CHANGELOG.md` if available
+
+#### Manual Release (if needed)
+
+If you need to release manually:
+
+```bash
+# Build the package
+python -m build
+
+# Check the build
+python -m twine check dist/*
+
+# Upload to Test PyPI first (optional)
+python -m twine upload --repository testpypi dist/*
+
+# Upload to PyPI
+python -m twine upload dist/*
+```
+
+#### Test Releases
+
+You can test the release process using Test PyPI:
+
+```bash
+# Trigger a test release manually
+gh workflow run release.yml --field test_release=true
+```
+
+### PyPI Configuration
+
+The project uses PyPI's trusted publishing feature, which eliminates the need for API tokens. The GitHub repository is configured as a trusted publisher for the `intake-gfs-ncar` package on PyPI.
+
+For this to work, the following GitHub repository environments must be configured:
+- `pypi`: For production releases to PyPI
+- `test-pypi`: For test releases to Test PyPI
+
+Each environment should have appropriate protection rules and the PyPI trusted publishing should be configured to allow releases from this repository.
 
 ## License
 

@@ -8,14 +8,13 @@ version = "0.2.0"
 description = "Intake driver for NCAR GFS forecast data"
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
     { name = "Oceanum Developers", email = "developers@oceanum.science" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
