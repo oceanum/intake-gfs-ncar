@@ -98,9 +98,6 @@ jobs:
     needs: [build, test]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    environment:
-      name: pypi
-      url: https://pypi.org/p/intake-gfs-ncar
     permissions:
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
     
