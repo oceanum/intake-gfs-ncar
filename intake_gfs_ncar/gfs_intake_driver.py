@@ -116,8 +116,7 @@ class GFSForecastSource(DataSource):
                 )
         except (ValueError, TypeError) as e:
             raise ValueError(
-                f"Invalid max_lead_time: {max_lead_time}. Expected positive "
-                f"integer"
+                f"Invalid max_lead_time: {max_lead_time}. Expected positive " f"integer"
             ) from e
 
         self.base_url = base_url.rstrip("/")
@@ -126,9 +125,7 @@ class GFSForecastSource(DataSource):
         self._urls = None
 
         # Create the cycle datetime for metadata
-        cycle_datetime = datetime.combine(
-            self.date, time(hour=self.model_run_time)
-        )
+        cycle_datetime = datetime.combine(self.date, time(hour=self.model_run_time))
 
         # Update metadata
         self.metadata.update(
@@ -536,8 +533,7 @@ class GFSForecastSource(DataSource):
                 # Log some basic info about the combined dataset
                 if hasattr(self._ds, "variables") and self._ds.variables:
                     logger.info(
-                        f"Combined dataset has {len(self._ds.variables)} "
-                        f"variables"
+                        f"Combined dataset has {len(self._ds.variables)} " f"variables"
                     )
                     logger.info(f"Dataset dimensions: {dict(self._ds.sizes)}")
 
