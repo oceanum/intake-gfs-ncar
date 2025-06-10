@@ -5,14 +5,12 @@ forecast data from the NCAR NOMADS server.
 """
 
 import logging
-import re
 import traceback
-from datetime import datetime, time, timedelta
-from typing import Any, Dict, List, Optional, Tuple, Union
+from datetime import datetime, time, timezone
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 import xarray as xr
-from dateutil.parser import parse as parse_date
 from intake.source.base import DataSource, Schema
 
 logger = logging.getLogger(__name__)
@@ -71,13 +69,17 @@ class GFSForecastSource(DataSource):
             if isinstance(cycle, str):
                 if cycle.lower() == "latest":
                     # Use current time if 'latest' is specified
-                    cycle_dt = datetime.utcnow()
+                    cycle_dt = datetime.now(timezone.utc)
                     # Round down to the nearest 6-hour cycle (00, 06, 12, 18Z)
                     hour = (cycle_dt.hour // 6) * 6
-                    cycle_dt = cycle_dt.replace(hour=hour, minute=0, second=0, microsecond=0)
+                    cycle_dt = cycle_dt.replace(
+                        hour=hour, minute=0, second=0, microsecond=0
+                    )
                     self.date = cycle_dt.date()
                     self.model_run_time = cycle_dt.hour
-                    logger.info(f"Using latest cycle: {cycle_dt.isoformat()} ({self.model_run_time:02d}Z)")
+                    logger.info(
+                        f"Using latest cycle: {cycle_dt.isoformat()} ({self.model_run_time:02d}Z)"
+                    )
                 else:
                     try:
                         cycle_dt = datetime.fromisoformat(cycle)
@@ -97,7 +99,8 @@ class GFSForecastSource(DataSource):
 
         except (ValueError, TypeError) as e:
             raise ValueError(
-                f"Invalid cycle format: {cycle}. Expected ISO format (YYYY-MM-DDTHH:MM:SS), 'latest', or datetime object"
+                f"Invalid cycle format: {cycle}. Expected ISO format "
+                f"(YYYY-MM-DDTHH:MM:SS), 'latest', or datetime object"
             ) from e
 
         # Validate max_lead_time
@@ -105,11 +108,16 @@ class GFSForecastSource(DataSource):
             self.max_lead_time = int(max_lead_time)
             if self.max_lead_time <= 0:
                 raise ValueError("max_lead_time must be a positive integer")
-            if self.max_lead_time > 384:  # Maximum GFS forecast length is typically 384 hours
-                logger.warning(f"max_lead_time={max_lead_time} is greater than typical GFS maximum of 384 hours")
+            if (
+                self.max_lead_time > 384
+            ):  # Maximum GFS forecast length is typically 384 hours
+                logger.warning(
+                    f"max_lead_time={max_lead_time} is greater than typical GFS maximum of 384 hours"
+                )
         except (ValueError, TypeError) as e:
             raise ValueError(
-                f"Invalid max_lead_time: {max_lead_time}. Expected positive integer"
+                f"Invalid max_lead_time: {max_lead_time}. Expected positive "
+                f"integer"
             ) from e
 
         self.base_url = base_url.rstrip("/")
@@ -118,8 +126,10 @@ class GFSForecastSource(DataSource):
         self._urls = None
 
         # Create the cycle datetime for metadata
-        cycle_datetime = datetime.combine(self.date, time(hour=self.model_run_time))
-        
+        cycle_datetime = datetime.combine(
+            self.date, time(hour=self.model_run_time)
+        )
+
         # Update metadata
         self.metadata.update(
             {
@@ -132,8 +142,11 @@ class GFSForecastSource(DataSource):
                 **kwargs,
             }
         )
-        
-        logger.info(f"Initialized GFS source for cycle: {cycle_datetime.isoformat()} with max_lead_time: {self.max_lead_time}")
+
+        logger.info(
+            f"Initialized GFS source for cycle: {cycle_datetime.isoformat()} "
+            f"with max_lead_time: {self.max_lead_time}"
+        )
 
     def _build_urls(self) -> List[str]:
         """Build URLs for all forecast lead times up to max_lead_time."""
@@ -144,7 +157,9 @@ class GFSForecastSource(DataSource):
         date_str = self.date.strftime("%Y%m%d")
         model_run_time_str = f"{self.model_run_time:02d}"
 
-        logger.info(f"Building URLs for max_lead_time={self.max_lead_time} (f{self.max_lead_time:03d})")
+        logger.info(
+            f"Building URLs for max_lead_time={self.max_lead_time} (f{self.max_lead_time:03d})"
+        )
 
         # GFS files are available in 3-hour increments up to 120 hours,
         # then 6-hour increments up to 240 hours, and 12-hour increments beyond that
@@ -221,9 +236,10 @@ class GFSForecastSource(DataSource):
 
                 # Download with a timeout
                 try:
-                    with urllib.request.urlopen(url, timeout=30) as response, open(
-                        temp_file, "wb"
-                    ) as out_file:
+                    with (
+                        urllib.request.urlopen(url, timeout=30) as response,
+                        open(temp_file, "wb") as out_file,
+                    ):
                         shutil.copyfileobj(response, out_file)
                 except Exception as e:
                     raise IOError(f"Failed to download {url}: {e}")
@@ -256,13 +272,14 @@ class GFSForecastSource(DataSource):
 
                     # Log basic info about the dataset
                     logger.info(
-                        f"Successfully opened dataset with {len(ds.variables)} variables"
+                        f"Successfully opened dataset with {len(ds.variables)} "
+                        f"variables"
                     )
                     logger.info(f"Dataset variables: {list(ds.variables.keys())}")
-                    logger.info(f"Dataset dimensions: {dict(ds.dims)}")
+                    logger.info(f"Dataset dimensions: {dict(ds.sizes)}")
 
                     # Convert to schema
-                    shape = {k: len(v) for k, v in ds.dims.items()}
+                    shape = {k: v for k, v in ds.sizes.items()}
                     dtype = {k: str(v.dtype) for k, v in ds.variables.items()}
 
                     self._schema = Schema(
@@ -273,7 +290,7 @@ class GFSForecastSource(DataSource):
                         extra_metadata={
                             "variables": list(ds.data_vars.keys()),
                             "coords": list(ds.coords.keys()),
-                            "dims": dict(ds.dims),
+                            "dims": dict(ds.sizes),
                         },
                     )
 
@@ -387,7 +404,7 @@ class GFSForecastSource(DataSource):
                     )
 
                 # Log detailed information about dimensions and coordinates
-                logger.info(f"Dataset dimensions: {dict(ds.dims)}")
+                logger.info(f"Dataset dimensions: {dict(ds.sizes)}")
                 if "time" in ds.coords:
                     logger.info(f"Time values: {ds.time.values}")
                 if "step" in ds.coords:
@@ -519,13 +536,14 @@ class GFSForecastSource(DataSource):
                 # Log some basic info about the combined dataset
                 if hasattr(self._ds, "variables") and self._ds.variables:
                     logger.info(
-                        f"Combined dataset has {len(self._ds.variables)} variables"
+                        f"Combined dataset has {len(self._ds.variables)} "
+                        f"variables"
                     )
-                    logger.info(f"Dataset dimensions: {dict(self._ds.dims)}")
+                    logger.info(f"Dataset dimensions: {dict(self._ds.sizes)}")
 
                     # Log time range if time dimension exists
                     if (
-                        "time" in self._ds.dims
+                        "time" in self._ds.sizes
                         and hasattr(self._ds, "time")
                         and len(self._ds.time) > 0
                     ):

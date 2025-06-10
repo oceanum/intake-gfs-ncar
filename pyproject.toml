@@ -73,7 +73,7 @@ addopts = "-v --cov=intake_gfs_ncar --cov-report=term-missing"
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 
 [tool.mypy]
-python_version = "0.3.0"
+python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

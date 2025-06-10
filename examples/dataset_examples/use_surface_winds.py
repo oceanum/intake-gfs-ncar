@@ -9,16 +9,16 @@ This script:
 4. Saves the processed data to a NetCDF file
 """
 
+import logging
 import os
 import sys
-import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
+import cartopy.crs as ccrs
 import intake
+import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-import matplotlib.pyplot as plt
-import cartopy.crs as ccrs
 
 # Set up logging
 logging.basicConfig(
@@ -66,10 +66,10 @@ def plot_wind_field(ds, forecast_step=0, output_dir="gfs_output"):
     os.makedirs(output_dir, exist_ok=True)
 
     # Select the specified forecast step
-    if 'step' in ds.dims and ds.dims['step'] > 1:
+    if "step" in ds.dims and ds.dims["step"] > 1:
         step_ds = ds.isel(step=forecast_step)
         step_value = ds.step.values[forecast_step]
-        step_hours = step_value.astype('timedelta64[h]').astype(int)
+        step_hours = step_value.astype("timedelta64[h]").astype(int)
         step_str = f"f{step_hours:03d}"
     else:
         step_ds = ds
@@ -79,7 +79,9 @@ def plot_wind_field(ds, forecast_step=0, output_dir="gfs_output"):
     plt.figure(figsize=(12, 8))
     ax = plt.axes(projection=ccrs.Robinson())
     ax.coastlines()
-    ax.gridlines(draw_labels=True, linewidth=0.5, color='gray', alpha=0.5, linestyle=':')
+    ax.gridlines(
+        draw_labels=True, linewidth=0.5, color="gray", alpha=0.5, linestyle=":"
+    )
     ax.set_global()
 
     # Subsample the data for cleaner vector plot (every 10th point)
@@ -95,36 +97,51 @@ def plot_wind_field(ds, forecast_step=0, output_dir="gfs_output"):
     lons_sub = lons[::stride]
     u_sub = u[::stride, ::stride]
     v_sub = u_sub.copy()  # Create properly sized array
-    
+
     # Create meshgrid for the subsampled points
     lon_grid, lat_grid = np.meshgrid(lons_sub, lats_sub)
-    
+
     # Plot wind speed as a filled contour
     speed_levels = np.arange(0, 30, 2)
-    cs = ax.contourf(lons, lats, speed, levels=speed_levels, 
-                     transform=ccrs.PlateCarree(), cmap='viridis', extend='max')
-    
+    cs = ax.contourf(
+        lons,
+        lats,
+        speed,
+        levels=speed_levels,
+        transform=ccrs.PlateCarree(),
+        cmap="viridis",
+        extend="max",
+    )
+
     # Plot wind vectors
-    q = ax.quiver(lon_grid, lat_grid, u_sub, v_sub, scale=700,
-                 transform=ccrs.PlateCarree(), color='white', alpha=0.6)
-    
+    q = ax.quiver(
+        lon_grid,
+        lat_grid,
+        u_sub,
+        v_sub,
+        scale=700,
+        transform=ccrs.PlateCarree(),
+        color="white",
+        alpha=0.6,
+    )
+
     # Add a key for the wind vectors
-    plt.quiverkey(q, 0.9, 0.9, 20, '20 m/s', labelpos='E', coordinates='figure')
-    
+    plt.quiverkey(q, 0.9, 0.9, 20, "20 m/s", labelpos="E", coordinates="figure")
+
     # Add colorbar
-    cbar = plt.colorbar(cs, orientation='horizontal', pad=0.05, aspect=50)
-    cbar.set_label('Wind Speed (m/s)')
-    
+    cbar = plt.colorbar(cs, orientation="horizontal", pad=0.05, aspect=50)
+    cbar.set_label("Wind Speed (m/s)")
+
     # Add title
-    valid_time = step_ds.valid_time.values if 'valid_time' in step_ds else "Unknown"
-    plt.title(f'GFS Surface Wind (10m) - {valid_time}\nForecast Step: {step_str}')
-    
+    valid_time = step_ds.valid_time.values if "valid_time" in step_ds else "Unknown"
+    plt.title(f"GFS Surface Wind (10m) - {valid_time}\nForecast Step: {step_str}")
+
     # Save the figure
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_file = os.path.join(output_dir, f"gfs_wind_map_{timestamp}_{step_str}.png")
-    plt.savefig(output_file, dpi=200, bbox_inches='tight')
+    plt.savefig(output_file, dpi=200, bbox_inches="tight")
     plt.close()
-    
+
     logger.info(f"Wind field plot saved to: {output_file}")
     return output_file
 
@@ -140,7 +157,9 @@ def main():
 
         # Get the path to the catalog file
         catalog_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            ),
             "intake_gfs_ncar",
             "gfs_catalog.yaml",
         )
@@ -149,18 +168,19 @@ def main():
         cat = intake.open_catalog(catalog_path)
 
         # Use a recent date (3 days ago) to ensure data availability
-        target_date = datetime.utcnow() - timedelta(days=3)
+        target_date = datetime.now(timezone.utc) - timedelta(days=3)
         # Round to nearest 6-hour cycle (00, 06, 12, 18Z)
         hour = (target_date.hour // 6) * 6
-        target_cycle = target_date.replace(hour=hour, minute=0, second=0, microsecond=0).isoformat()
+        target_cycle = target_date.replace(
+            hour=hour, minute=0, second=0, microsecond=0
+        ).isoformat()
 
         logger.info(f"Using cycle: {target_cycle}")
 
         # Get the surface winds dataset from the catalog
         # Note: This dataset is pre-configured with the appropriate filter keys
         source = cat.gfs_surface_winds(
-            cycle=target_cycle,
-            max_lead_time=24  # Get 24 hours of forecast data
+            cycle=target_cycle, max_lead_time=24  # Get 24 hours of forecast data
         )
 
         logger.info("Reading surface wind data...")
@@ -204,18 +224,20 @@ def main():
             hour_str = cycle_dt.strftime("%H")
         except (ValueError, TypeError):
             # If parsing fails, use current time as fallback
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             date_str = now.strftime("%Y%m%d")
             hour_str = now.strftime("%H")
-            logger.warning(f"Could not parse cycle datetime: {target_cycle}, using current time")
-            
+            logger.warning(
+                f"Could not parse cycle datetime: {target_cycle}, using current time"
+            )
+
         output_file = os.path.join(
             output_dir, f"gfs_surface_winds_{date_str}_{hour_str}z.nc"
         )
 
         logger.info(f"Saving processed data to {output_file}")
         encoding = {var: {"zlib": True, "complevel": 4} for var in ds.data_vars}
-        
+
         ds.to_netcdf(
             output_file,
             encoding=encoding,
@@ -226,12 +248,12 @@ def main():
 
         logger.info(f"\nSuccess! Dataset saved to: {os.path.abspath(output_file)}")
         logger.info(f"Wind field visualization saved to: {os.path.abspath(plot_file)}")
-        
+
         # Display a sample of the data
-        if 'step' in ds.dims and ds.dims['step'] > 1:
+        if "step" in ds.dims and ds.dims["step"] > 1:
             logger.info("\nWind speed statistics by forecast step:")
-            for step_idx in range(min(3, ds.dims['step'])):  # Show first 3 steps
-                step_val = ds.step.values[step_idx].astype('timedelta64[h]').astype(int)
+            for step_idx in range(min(3, ds.dims["step"])):  # Show first 3 steps
+                step_val = ds.step.values[step_idx].astype("timedelta64[h]").astype(int)
                 step_ds = ds.isel(step=step_idx)
                 logger.info(
                     f"  Step f{step_val:03d}: Wind speed {float(step_ds['wind_speed'].min().values):.2f} to "

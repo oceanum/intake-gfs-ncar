@@ -12,7 +12,7 @@ This script demonstrates how to:
 import logging
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import intake
 import numpy as np
@@ -54,7 +54,9 @@ def calculate_wind_speed_direction(u, v):
     return wind_speed, wind_dir
 
 
-def get_surface_winds(cycle, forecast_hour="f000", output_dir="gfs_output", include_all_steps=True):
+def get_surface_winds(
+    cycle, forecast_hour="f000", output_dir="gfs_output", include_all_steps=True
+):
     """Download and process GFS surface wind data.
 
     Args:
@@ -96,7 +98,7 @@ def get_surface_winds(cycle, forecast_hour="f000", output_dir="gfs_output", incl
             },
             max_lead_time=3,
         )
-        
+
         logger.info("GFS source created with filter_by_keys:")
         for key, value in source.cfgrib_filter_by_keys.items():
             logger.info(f"  {key}: {value}")
@@ -135,15 +137,15 @@ def get_surface_winds(cycle, forecast_hour="f000", output_dir="gfs_output", incl
                 {
                     "title": "GFS 10m Surface Winds",
                     "source": "NOAA NCEP GFS",
-                    "history": f"Generated on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC",
+                    "history": f"Generated on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC",
                     "conventions": "CF-1.8",
                     "processing": "Calculated wind speed and direction from U and V components",
                 }
             )
 
             # For filename, use the actual date we're processing
-            if isinstance(cycle, str) and cycle.lower() == 'latest':
-                date_str = datetime.utcnow().strftime("%Y%m%d")
+            if isinstance(cycle, str) and cycle.lower() == "latest":
+                date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
             elif isinstance(cycle, str):
                 try:
                     date_str = datetime.fromisoformat(cycle).strftime("%Y%m%d")
@@ -153,11 +155,12 @@ def get_surface_winds(cycle, forecast_hour="f000", output_dir="gfs_output", incl
             else:
                 # Assume it's a datetime object
                 date_str = cycle.strftime("%Y%m%d")
-                
+
             # Save to NetCDF - if we have multiple forecast steps, include that in the filename
-            if 'step' in ds.coords and hasattr(ds.step, 'size') and ds.step.size > 1:
+            if "step" in ds.coords and hasattr(ds.step, "size") and ds.step.size > 1:
                 output_file = os.path.join(
-                    output_dir, f"gfs_surface_winds_{date_str}_f000-f{int(ds.step.max().values.astype('timedelta64[h]').astype(int)):03d}.nc"
+                    output_dir,
+                    f"gfs_surface_winds_{date_str}_f000-f{int(ds.step.max().values.astype('timedelta64[h]').astype(int)):03d}.nc",
                 )
             else:
                 output_file = os.path.join(
@@ -178,12 +181,14 @@ def get_surface_winds(cycle, forecast_hour="f000", output_dir="gfs_output", incl
             logger.info("\nDataset summary:")
             logger.info(f"Variables: {list(ds.data_vars)}")
             logger.info(f"Dimensions: {dict(ds.dims)}")
-            
+
             # If we have multiple steps, show statistics for each
-            if 'step' in ds.dims and ds.dims['step'] > 1:
+            if "step" in ds.dims and ds.dims["step"] > 1:
                 logger.info("Wind statistics by forecast step:")
-                for step_idx in range(ds.dims['step']):
-                    step_val = ds.step.values[step_idx].astype('timedelta64[h]').astype(int)
+                for step_idx in range(ds.dims["step"]):
+                    step_val = (
+                        ds.step.values[step_idx].astype("timedelta64[h]").astype(int)
+                    )
                     step_ds = ds.isel(step=step_idx)
                     logger.info(
                         f"  Step f{step_val:03d}: Wind speed {float(step_ds['wind_speed'].min().values):.2f} to "
@@ -215,10 +220,12 @@ def main():
         logger.info("=== GFS Surface Wind Data Example ===")
 
         # Use data from 3 days ago to ensure it's available
-        target_date = datetime.utcnow() - timedelta(days=3)
+        target_date = datetime.now(timezone.utc) - timedelta(days=3)
         # Round to nearest 00, 06, 12, 18Z cycle
         hour = (target_date.hour // 6) * 6
-        target_cycle = target_date.replace(hour=hour, minute=0, second=0, microsecond=0).isoformat()
+        target_cycle = target_date.replace(
+            hour=hour, minute=0, second=0, microsecond=0
+        ).isoformat()
         forecast_hour = "f000"  # Analysis time
 
         logger.info(f"Processing cycle: {target_cycle}, forecast hour: {forecast_hour}")
@@ -228,7 +235,7 @@ def main():
             cycle=target_cycle,
             forecast_hour=forecast_hour,
             output_dir="gfs_output",
-            include_all_steps=True
+            include_all_steps=True,
         )
 
         logger.info(f"\nSuccess! Output saved to: {os.path.abspath(output_file)}")
