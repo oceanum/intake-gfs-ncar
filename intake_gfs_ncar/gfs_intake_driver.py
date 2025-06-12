@@ -877,8 +877,19 @@ class GFSForecastSource(DataSource):
             raise
 
     def to_dask(self):
-        """Return a dask array for this data source."""
-        return self.read().to_dask()
+        """Return the dataset with dask arrays."""
+        ds = self.read()
+        
+        # If the dataset already uses dask arrays, return it as-is
+        if any(hasattr(var.data, 'chunks') for var in ds.data_vars.values()):
+            return ds
+        
+        # Otherwise, chunk the dataset to use dask arrays
+        try:
+            return ds.chunk()
+        except Exception:
+            # If chunking fails, return the dataset as-is
+            return ds
 
     def close(self):
         """Close any open files or resources."""
