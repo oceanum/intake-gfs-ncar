@@ -80,7 +80,7 @@ class TestGFSDriver(unittest.TestCase):
             source = GFSForecastSource(
                 cycle=TEST_DATE + "T00:00:00",
                 max_lead_time=3,
-                base_url="https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod",
+                base_url="https://thredds.rda.ucar.edu/thredds/dodsC/files/g/d084001",
                 cfgrib_filter_by_keys={"typeOfLevel": "surface"},
             )
 
@@ -141,7 +141,7 @@ class TestGFSDriver(unittest.TestCase):
             source = GFSForecastSource(
                 cycle=TEST_DATE + "T00:00:00",
                 max_lead_time=3,  # Only request first forecast step
-                base_url="https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod",
+                base_url="https://thredds.rda.ucar.edu/thredds/dodsC/files/g/d084001",
                 cfgrib_filter_by_keys={"typeOfLevel": "surface"},
             )
 

@@ -1,7 +1,7 @@
-"""Intake driver for GFS forecast data from NCAR NOMADS.
+"""Intake driver for GFS forecast data from NCAR THREDDS.
 
 This module provides an Intake driver for accessing Global Forecast System (GFS)
-forecast data from the NCAR NOMADS server.
+forecast data from the NCAR THREDDS server.
 """
 
 import logging
@@ -15,21 +15,21 @@ from intake.source.base import DataSource, Schema
 
 logger = logging.getLogger(__name__)
 
-# Default GFS data URL (NCAR NOMADS)
-DEFAULT_BASE_URL = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod"
+# Default GFS data URL (NCAR THREDDS)
+DEFAULT_BASE_URL = "https://thredds.rda.ucar.edu/thredds"
 
 # Default file pattern for GFS forecast files
 DEFAULT_FILE_PATTERN = (
-    "{base_url}/gfs.{date:%Y%m%d}/{model_run_time:02d}/"
-    "atmos/gfs.t{model_run_time:02d}z.pgrb2.0p25.f{lead_time:03d}"
+    "{base_url}/{date:%Y}/{date:%Y%m%d}/"
+    "gfs.0p25.{date:%Y%m%d}{model_run_time:02d}.f{lead_time:03d}.grib2"
 )
 
 
 class GFSForecastSource(DataSource):
-    """Intake driver for GFS forecast data from NCAR NOMADS.
+    """Intake driver for GFS forecast data from NCAR THREDDS.
 
     This driver provides access to GFS forecast data in GRIB2 format from the
-    NCAR NOMADS server. It supports filtering by variable, level, and forecast
+    NCAR THREDDS server. It supports filtering by variable, level, and forecast
     lead time, and returns data as xarray Datasets.
 
     Parameters
@@ -39,11 +39,16 @@ class GFSForecastSource(DataSource):
     max_lead_time_fXXX : str, optional
         Maximum forecast lead time as 'fHHH' (e.g., 'f024' for 24 hours)
     base_url : str, optional
-        Base URL for the NOMADS server
+        Base URL for the NCAR THREDDS server
     model_run_time : str or int, optional
         Model run time in 'HH' format (e.g., '00' or 0 for 00Z run)
     cfgrib_filter_by_keys : dict, optional
         Dictionary of GRIB filter parameters (e.g., {'typeOfLevel': 'surface'})
+    access_method : str, optional
+        Data access method: 'ncss' (NetcdfSubset), 'fileServer' (HTTP download), 
+        or 'auto' (try ncss first, fallback to fileServer). Default: 'auto'
+    ncss_params : dict, optional
+        Additional NetcdfSubset parameters (e.g., {'north': 60, 'south': 30})
     metadata : dict, optional
         Additional metadata to include in the source
     """
@@ -59,6 +64,8 @@ class GFSForecastSource(DataSource):
         max_lead_time: int = 24,
         base_url: str = DEFAULT_BASE_URL,
         cfgrib_filter_by_keys: Optional[Dict[str, Any]] = None,
+        access_method: str = "auto",
+        ncss_params: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
@@ -121,6 +128,8 @@ class GFSForecastSource(DataSource):
 
         self.base_url = base_url.rstrip("/")
         self.cfgrib_filter_by_keys = cfgrib_filter_by_keys or {}
+        self.access_method = access_method
+        self.ncss_params = ncss_params or {}
         self._ds = None
         self._urls = None
 
@@ -136,6 +145,8 @@ class GFSForecastSource(DataSource):
                 "model_run_time": f"{self.model_run_time:02d}Z",
                 "base_url": self.base_url,
                 "cfgrib_filter_by_keys": self.cfgrib_filter_by_keys,
+                "access_method": self.access_method,
+                "ncss_params": self.ncss_params,
                 **kwargs,
             }
         )
@@ -161,33 +172,21 @@ class GFSForecastSource(DataSource):
         # GFS files are available in 3-hour increments up to 120 hours,
         # then 6-hour increments up to 240 hours, and 12-hour increments beyond that
         for lead_time in range(0, min(self.max_lead_time, 120) + 1, 3):
-            url = (
-                f"{self.base_url}/gfs.{date_str}/{model_run_time_str}/"
-                f"atmos/gfs.t{model_run_time_str}z.pgrb2.0p25.f{lead_time:03d}"
-            )
+            url = self._build_file_url(date_str, model_run_time_str, lead_time)
             urls.append(url)
             logger.debug(f"Added URL for lead_time={lead_time}: {url}")
 
         if self.max_lead_time > 120:
             for lead_time in range(123, min(self.max_lead_time, 240) + 1, 3):
-                url = (
-                    f"{self.base_url}/gfs.{date_str}/{model_run_time_str}/"
-                    f"atmos/gfs.t{model_run_time_str}z.pgrb2.0p25.f{lead_time:03d}"
-                )
+                url = self._build_file_url(date_str, model_run_time_str, lead_time)
                 urls.append(url)
                 logger.debug(f"Added URL for lead_time={lead_time}: {url}")
 
         if self.max_lead_time > 240:
             for lead_time in range(246, self.max_lead_time + 1, 6):
-                url = (
-                    f"{self.base_url}/gfs.{date_str}/{model_run_time_str}/"
-                    f"atmos/gfs.t{model_run_time_str}z.pgrb2.0p25.f{lead_time:03d}"
-                )
+                url = self._build_file_url(date_str, model_run_time_str, lead_time)
                 urls.append(url)
                 logger.debug(f"Added URL for lead_time={lead_time}: {url}")
-
-        # Add .idx file for better performance with cfgrib
-        # urls = [f"{url}.idx" for url in urls] + urls
 
         self._urls = urls
         logger.info(
@@ -203,6 +202,75 @@ class GFSForecastSource(DataSource):
 
         return urls
 
+    def _build_file_url(self, date_str: str, model_run_time_str: str, lead_time: int) -> str:
+        """Build URL for a specific forecast file based on access method."""
+        file_path = f"files/g/d084001/{date_str[:4]}/{date_str}/gfs.0p25.{date_str}{model_run_time_str}.f{lead_time:03d}.grib2"
+        
+        if self.access_method == "ncss" or self.access_method == "auto":
+            # Use NetcdfSubset service
+            url = f"{self.base_url}/ncss/grid/{file_path}"
+            if self.cfgrib_filter_by_keys or self.ncss_params:
+                url += self._build_ncss_query()
+        else:
+            # Use HTTP fileServer
+            url = f"{self.base_url}/fileServer/{file_path}"
+            
+        return url
+
+    def _build_ncss_query(self) -> str:
+        """Build NetcdfSubset query parameters from cfgrib filters and ncss params."""
+        params = {}
+        
+        # Add NetcdfSubset-specific parameters
+        params.update(self.ncss_params)
+        
+        # Convert cfgrib filters to NetcdfSubset parameters where possible
+        if self.cfgrib_filter_by_keys:
+            # Map common cfgrib keys to NetcdfSubset variable names
+            var_mapping = {
+                '2t': 'Temperature_height_above_ground',
+                't2m': 'Temperature_height_above_ground', 
+                '10u': 'u-component_of_wind_height_above_ground',
+                '10v': 'v-component_of_wind_height_above_ground',
+                'msl': 'Pressure_reduced_to_MSL_msl',
+                'sp': 'Surface_pressure_surface',
+            }
+            
+            # Try to map variables
+            if 'shortName' in self.cfgrib_filter_by_keys:
+                short_names = self.cfgrib_filter_by_keys['shortName']
+                if isinstance(short_names, str):
+                    short_names = [short_names]
+                
+                vars_to_add = []
+                for short_name in short_names:
+                    if short_name in var_mapping:
+                        vars_to_add.append(var_mapping[short_name])
+                
+                if vars_to_add:
+                    params['var'] = ','.join(vars_to_add)
+            
+            # Handle level selections
+            if 'level' in self.cfgrib_filter_by_keys:
+                level = self.cfgrib_filter_by_keys['level']
+                if 'typeOfLevel' in self.cfgrib_filter_by_keys:
+                    level_type = self.cfgrib_filter_by_keys['typeOfLevel']
+                    if level_type == 'heightAboveGround':
+                        params['vertCoord'] = f"{level}"
+        
+        # Set default format to netcdf if not specified
+        if 'format' not in params:
+            params['format'] = 'netcdf'
+            
+        # Build query string
+        if params:
+            query_parts = []
+            for key, value in params.items():
+                query_parts.append(f"{key}={value}")
+            return "?" + "&".join(query_parts)
+        else:
+            return "?format=netcdf"
+
     def _get_schema(self) -> Schema:
         """Get schema for the data source."""
         if self._schema is not None:
@@ -215,13 +283,61 @@ class GFSForecastSource(DataSource):
 
         # Try to open the first file to get the schema
         try:
-            # Import required modules
+            url = self._urls[0]
+            logger.info(f"Getting schema from: {url}")
+
+            # Check if this is a NetcdfSubset URL
+            is_ncss = "/ncss/" in url
+            
+            if is_ncss:
+                # Try NetcdfSubset approach first
+                try:
+                    logger.info("Attempting schema discovery with NetcdfSubset")
+                    ds = xr.open_dataset(url, engine="netcdf4")
+                    
+                    logger.info(f"NetcdfSubset schema discovery successful")
+                    logger.info(f"Variables: {list(ds.variables.keys())}")
+                    logger.info(f"Dimensions: {dict(ds.sizes)}")
+                    logger.info(f"Coordinates: {list(ds.coords.keys())}")
+
+                    # Convert to schema
+                    shape = {k: v for k, v in ds.sizes.items()}
+                    dtype = {k: str(v.dtype) for k, v in ds.variables.items()}
+
+                    self._schema = Schema(
+                        datashape=None,
+                        shape=tuple(shape.values()) if shape else None,
+                        dtype=dtype,
+                        npartitions=len(self._urls),
+                        extra_metadata={
+                            "variables": list(ds.data_vars.keys()),
+                            "coords": list(ds.coords.keys()),
+                            "dims": dict(ds.sizes),
+                            "access_method": "ncss",
+                        },
+                    )
+
+                    # Store the dataset if it's small enough
+                    if sum(shape.values()) < 1e6:  # Arbitrary threshold
+                        self._ds = ds
+
+                    return self._schema
+                    
+                except Exception as e:
+                    logger.warning(f"NetcdfSubset schema discovery failed: {e}")
+                    if self.access_method != "auto":
+                        raise
+                    
+                    # Fall back to fileServer approach
+                    logger.info("Falling back to fileServer for schema discovery")
+                    url = url.replace("/ncss/grid/", "/fileServer/").split("?")[0]
+            
+            # GRIB2 fileServer approach
             import os
             import shutil
             import tempfile
             import urllib.request
 
-            url = self._urls[0]
             logger.info(f"Downloading file for schema: {url}")
 
             # Create a temporary directory for the download
@@ -248,32 +364,27 @@ class GFSForecastSource(DataSource):
                     )
 
                 logger.info(
-                    f"Successfully downloaded {os.path.getsize(temp_file)} bytes"
+                    f"Successfully downloaded file, size: {os.path.getsize(temp_file)} bytes"
                 )
 
-                # Try to open with cfgrib
+                # Open the dataset with cfgrib
                 backend_kwargs = {
                     "indexpath": "",
                     "errors": "raise",  # Raise exceptions to see actual errors
                     "filter_by_keys": self.cfgrib_filter_by_keys or {},
                 }
 
-                logger.info(f"Opening GRIB file with cfgrib backend: {temp_file}")
-                logger.info(f"Using backend kwargs: {backend_kwargs}")
+                logger.info(f"Opening with cfgrib, filter_by_keys: {backend_kwargs}")
 
-                # Open the dataset
                 try:
                     ds = xr.open_dataset(
                         temp_file, engine="cfgrib", backend_kwargs=backend_kwargs
                     )
 
-                    # Log basic info about the dataset
-                    logger.info(
-                        f"Successfully opened dataset with {len(ds.variables)} "
-                        f"variables"
-                    )
-                    logger.info(f"Dataset variables: {list(ds.variables.keys())}")
-                    logger.info(f"Dataset dimensions: {dict(ds.sizes)}")
+                    logger.info(f"GRIB schema discovery successful")
+                    logger.info(f"Variables: {list(ds.variables.keys())}")
+                    logger.info(f"Dimensions: {dict(ds.sizes)}")
+                    logger.info(f"Coordinates: {list(ds.coords.keys())}")
 
                     # Convert to schema
                     shape = {k: v for k, v in ds.sizes.items()}
@@ -288,6 +399,7 @@ class GFSForecastSource(DataSource):
                             "variables": list(ds.data_vars.keys()),
                             "coords": list(ds.coords.keys()),
                             "dims": dict(ds.sizes),
+                            "access_method": "fileServer",
                         },
                     )
 
@@ -356,6 +468,100 @@ class GFSForecastSource(DataSource):
         url = self._urls[i]
         logger.info(f"Reading data from {url}")
 
+        # Check if this is a NetcdfSubset URL (contains ncss)
+        is_ncss = "/ncss/" in url
+        
+        try:
+            if is_ncss:
+                return self._read_ncss_data(url, i)
+            else:
+                return self._read_grib_data(url, i)
+        except Exception as e:
+            # Enhance error message with partition context
+            error_msg = f"Failed to read partition {i} from {url}: {e}"
+            logger.error(error_msg)
+            
+            # Provide helpful suggestions based on error type
+            if "404" in str(e) or "Not Found" in str(e):
+                logger.info(f"Partition {i} data may not be available. This could be due to:")
+                logger.info("  - Recent forecast times that haven't been published yet")
+                logger.info("  - Archived data that's no longer available")
+                logger.info("  - Incorrect date/time specification")
+                logger.info(f"  - URL: {url}")
+            
+            raise type(e)(error_msg) from e
+
+    def _read_ncss_data(self, url: str, partition_idx: int) -> xr.Dataset:
+        """Read data from NetcdfSubset service."""
+        try:
+            # Create a temporary file to download the NetCDF file
+            import os
+            import tempfile
+            import urllib.request
+            import urllib.error
+
+            logger.info(f"Downloading NetCDF data from NetcdfSubset: {url}")
+            
+            with tempfile.NamedTemporaryFile(suffix=".nc", delete=False) as tmp_file:
+                tmp_path = tmp_file.name
+
+            # Download the file with better error handling
+            logger.info(f"Downloading NetCDF file to temporary location: {tmp_path}")
+            try:
+                urllib.request.urlretrieve(url, tmp_path)
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    raise IOError(f"Data not found (HTTP 404): {url}. This forecast time may not be available yet or may have been archived.")
+                elif e.code == 400:
+                    raise IOError(f"Bad request (HTTP 400): {url}. Check variable names and query parameters.")
+                else:
+                    raise IOError(f"HTTP Error {e.code}: {e.reason} for URL: {url}")
+            except urllib.error.URLError as e:
+                raise IOError(f"Network error accessing {url}: {e.reason}")
+
+            # Check if file was downloaded successfully
+            if not os.path.exists(tmp_path) or os.path.getsize(tmp_path) == 0:
+                raise IOError(f"Failed to download NetCDF file from {url}")
+
+            logger.info(f"Successfully downloaded NetCDF file, size: {os.path.getsize(tmp_path)} bytes")
+            
+            # Open with xarray netcdf4 engine
+            ds = xr.open_dataset(tmp_path, engine="netcdf4")
+            
+            logger.info(f"Successfully opened NetCDF dataset with variables: {list(ds.variables.keys())}")
+            logger.info(f"Dataset dimensions: {dict(ds.sizes)}")
+            
+            # Add metadata
+            ds.attrs["source_url"] = url
+            ds.attrs["access_method"] = "ncss"
+            ds.attrs["partition_index"] = partition_idx
+            
+            # Load data into memory
+            logger.info("Loading NetCDF data into memory")
+            ds = ds.load()
+            
+            # Clean up temporary file
+            try:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                    logger.debug(f"Removed temporary file: {tmp_path}")
+            except Exception as e:
+                logger.warning(f"Could not remove temporary file {tmp_path}: {e}")
+            
+            return ds
+            
+        except Exception as e:
+            logger.warning(f"NetcdfSubset failed for partition {partition_idx}: {e}")
+            if self.access_method == "auto":
+                logger.info("Falling back to fileServer method")
+                # Convert to fileServer URL and try GRIB approach
+                fallback_url = url.replace("/ncss/grid/", "/fileServer/").split("?")[0]
+                return self._read_grib_data(fallback_url, partition_idx)
+            else:
+                raise
+
+    def _read_grib_data(self, url: str, partition_idx: int) -> xr.Dataset:
+        """Read data from GRIB2 file using HTTP fileServer."""
         try:
             # Create a temporary file to download the GRIB file
             import os
@@ -409,9 +615,12 @@ class GFSForecastSource(DataSource):
 
                 # Add URL as an attribute for reference
                 ds.attrs["source_url"] = url
-                ds.attrs["lead_time"] = url.split(".")[
-                    -1
-                ]  # Extract the forecast hour (f000, f003, etc.)
+                ds.attrs["access_method"] = "fileServer"
+                ds.attrs["partition_index"] = partition_idx
+                # Extract lead time from URL or filename
+                if ".f" in url and ".grib2" in url:
+                    lead_time_part = url.split(".f")[-1].split(".grib2")[0]
+                    ds.attrs["lead_time"] = f"f{lead_time_part}"
 
                 # Actually load all data into memory to avoid file access issues
                 logger.info(f"Loading data into memory from {tmp_path}")
@@ -440,6 +649,76 @@ class GFSForecastSource(DataSource):
             logger.debug(f"Traceback: {traceback.format_exc()}")
             raise
 
+    def _standardize_variable_names(self, ds: xr.Dataset) -> xr.Dataset:
+        """Standardize variable names and coordinates to match GRIB conventions.
+        
+        This method renames NetCDF variables from NetcdfSubset to match
+        the expected GRIB variable names for consistency across access methods.
+        It also standardizes time coordinate names to fix alignment issues.
+        
+        Parameters
+        ----------
+        ds : xr.Dataset
+            Dataset with potentially non-standard variable names
+            
+        Returns
+        -------
+        xr.Dataset
+            Dataset with standardized variable names and coordinates
+        """
+        # Mapping from NetCDF names (NetcdfSubset) to GRIB-style names
+        name_mapping = {
+            'Temperature_height_above_ground': 't2m',  # 2m temperature
+            'u-component_of_wind_height_above_ground': 'u10',  # 10m u-wind
+            'v-component_of_wind_height_above_ground': 'v10',  # 10m v-wind
+            'Pressure_reduced_to_MSL_msl': 'msl',  # Mean sea level pressure
+            'Surface_pressure_surface': 'sp',  # Surface pressure
+            'Relative_humidity_height_above_ground': 'r2',  # 2m relative humidity
+            'Specific_humidity_height_above_ground': 'q2',  # 2m specific humidity
+            'Dewpoint_temperature_height_above_ground': 'd2m',  # 2m dewpoint
+            'Total_precipitation_surface': 'tp',  # Total precipitation
+            'Convective_precipitation_surface': 'cp',  # Convective precipitation
+            'Snowfall_rate_water_equivalent_surface': 'sf',  # Snowfall
+            'Geopotential_height_isobaric': 'gh',  # Geopotential height
+            'Temperature_isobaric': 't',  # Temperature on pressure levels
+            'u-component_of_wind_isobaric': 'u',  # U-wind on pressure levels
+            'v-component_of_wind_isobaric': 'v',  # V-wind on pressure levels
+            'Relative_humidity_isobaric': 'r',  # Relative humidity on pressure levels
+        }
+        
+        # Create a copy to avoid modifying the original
+        ds_renamed = ds.copy()
+        
+        # Track which variables were renamed
+        renamed_vars = {}
+        
+        # Rename data variables
+        for netcdf_name, grib_name in name_mapping.items():
+            if netcdf_name in ds_renamed.data_vars:
+                logger.debug(f"Renaming variable: {netcdf_name} → {grib_name}")
+                ds_renamed = ds_renamed.rename({netcdf_name: grib_name})
+                renamed_vars[netcdf_name] = grib_name
+        
+        # Standardize time coordinate names for consistency across partitions
+        # NetcdfSubset sometimes returns 'time', 'time1', 'time2', etc.
+        time_coords_to_rename = {}
+        for coord_name in ds_renamed.coords:
+            if coord_name.startswith('time') and coord_name != 'time':
+                time_coords_to_rename[coord_name] = 'time'
+                logger.debug(f"Renaming time coordinate: {coord_name} → time")
+        
+        if time_coords_to_rename:
+            ds_renamed = ds_renamed.rename(time_coords_to_rename)
+            logger.info(f"Standardized time coordinates: {time_coords_to_rename}")
+        
+        # Log standardization results
+        if renamed_vars:
+            logger.info(f"Standardized {len(renamed_vars)} variable names: {renamed_vars}")
+            # Add metadata about the renaming (convert dict to string for NetCDF compatibility)
+            ds_renamed.attrs['variable_name_standardization'] = str(renamed_vars)
+        
+        return ds_renamed
+
     def read(self) -> xr.Dataset:
         """Load entire dataset into memory and return as xarray.Dataset"""
         if self._ds is not None:
@@ -464,6 +743,8 @@ class GFSForecastSource(DataSource):
                         logger.info(
                             f"Successfully read partition {i+1} with variables: {list(ds.variables.keys())}"
                         )
+                        # Standardize variable names for consistency
+                        ds = self._standardize_variable_names(ds)
                         datasets.append(ds)
                     else:
                         logger.warning(f"No data in partition {i+1}")

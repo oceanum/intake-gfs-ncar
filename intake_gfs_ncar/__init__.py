@@ -1,7 +1,7 @@
 """Intake driver for NCAR GFS forecast data.
 
 This package provides an Intake driver for accessing Global Forecast System (GFS)
-data from the NCAR NOMADS server.
+data from the NCAR THREDDS server.
 """
 
 import intake

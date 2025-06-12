@@ -89,13 +89,13 @@ def download_gfs_2m_temperature(
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
 
-        # Format the base URL
-        base_url = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod"
+        # Format the base URL for NCAR THREDDS server
+        base_url = "https://thredds.rda.ucar.edu/thredds/dodsC/files/g/d084001"
         model_run_str = f"{model_run_time:02d}"  # Zero-padded to 2 digits
         forecast_str = f"{forecast_hour:03d}"  # Zero-padded to 3 digits
 
-        # Construct the GRIB2 file URL
-        grib_url = f"{base_url}/gfs.{date_str}/{model_run_str}/atmos/gfs.t{model_run_str}z.pgrb2.0p25.f{forecast_str}"
+        # Construct the GRIB2 file URL for NCAR THREDDS
+        grib_url = f"{base_url}/{date_str[:4]}/{date_str}/gfs.0p25.{date_str}{model_run_str}.f{forecast_str}.grib2"
 
         # Create a temporary directory for downloads
         with tempfile.TemporaryDirectory(prefix="gfs_") as temp_dir:

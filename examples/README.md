@@ -44,7 +44,7 @@ pip install matplotlib cartopy
 ## Output
 
 Most examples will:
-1. Download the requested GFS data from the NCAR NOMADS server
+1. Download the requested GFS data from the NCAR THREDDS server
 2. Process the data (calculating derived fields, etc.)
 3. Save the processed data as NetCDF files in a `gfs_output` directory
 4. Generate visualizations (where applicable)

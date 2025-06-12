@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
-Example script to download and process GFS surface wind data (10m U and V components).
+Example script to download and process GFS surface wind data using the dedicated catalog dataset.
 
 This script demonstrates how to:
-1. Use the GFS intake catalog to access surface wind data
-2. Download U and V wind components at 10m height
+1. Use the dedicated gfs_surface_winds catalog entry for surface wind data
+2. Download U and V wind components at 10m height using the pre-configured dataset
 3. Calculate wind speed and direction
 4. Save the results to a NetCDF file
+
+This example uses the gfs_surface_winds dataset from the catalog, which is pre-configured
+with the appropriate filters for 10m wind components, making it simpler to use than
+the general gfs_forecast dataset.
 """
 
 import logging
@@ -24,7 +28,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler("gfs_surface_winds.log"),
+        logging.FileHandler("gfs_surface_winds_catalog.log"),
     ],
 )
 logger = logging.getLogger(__name__)
@@ -42,9 +46,6 @@ def calculate_wind_speed_direction(u, v):
             - wind_speed is in m/s
             - wind_direction is in degrees (meteorological convention: 0° = N, 90° = E, etc.)
     """
-    # Note: Data should already be loaded into memory by the intake driver
-    # No need to explicitly call load() again
-
     # Calculate wind speed (magnitude)
     wind_speed = np.sqrt(u**2 + v**2)
 
@@ -54,25 +55,25 @@ def calculate_wind_speed_direction(u, v):
     return wind_speed, wind_dir
 
 
-def get_surface_winds(
-    cycle, forecast_hour="f000", output_dir="gfs_output", include_all_steps=True
+def get_surface_winds_from_catalog(
+    cycle, forecast_hour="f000", output_dir="gfs_output", max_lead_time=3
 ):
-    """Download and process GFS surface wind data.
+    """Download and process GFS surface wind data using the dedicated catalog dataset.
 
     Args:
         cycle: ISO datetime string (YYYY-MM-DDTHH:MM:SS) or 'latest'
                Represents the model cycle time (e.g., '2025-01-01T00:00:00' for 00Z run)
         forecast_hour: Forecast hour (e.g., 'f000' for analysis, 'f003' for 3-hour forecast)
-            Only used for output filename if include_all_steps=False
+            Only used for output filename
         output_dir: Directory to save output files
-        include_all_steps: If True, include all available forecast steps up to max_lead_time
+        max_lead_time: Maximum forecast lead time in hours
 
     Returns:
         str: Path to the output NetCDF file
     """
     try:
         logger.info(
-            f"Processing surface wind data for cycle {cycle}, forecast hour {forecast_hour}"
+            f"Processing surface wind data using catalog dataset for cycle {cycle}"
         )
 
         # Create output directory if it doesn't exist
@@ -88,20 +89,16 @@ def get_surface_winds(
         logger.info(f"Loading catalog from: {catalog_path}")
         cat = intake.open_catalog(catalog_path)
 
-        # Get the GFS forecast source
-        # Use NetcdfSubset access method for better performance and variable filtering
-        source = cat.gfs_forecast(
+        # Use the dedicated gfs_surface_winds dataset
+        # This dataset is pre-configured with the appropriate filters for 10m wind components
+        logger.info("Using dedicated gfs_surface_winds dataset from catalog")
+        source = cat.gfs_surface_winds(
             cycle=cycle,
-            access_method="ncss",  # Use NetcdfSubset for better performance
-            cfgrib_filter_by_keys={
-                "typeOfLevel": "heightAboveGround",
-                "level": 10,  # 10m height
-                "shortName": ["10u", "10v"],  # U and V components at 10m
-            },
-            max_lead_time=3,
+            max_lead_time=max_lead_time,
         )
 
-        logger.info("GFS source created with filter_by_keys:")
+        logger.info("GFS surface winds source created from catalog")
+        logger.info("Pre-configured filters:")
         for key, value in source.cfgrib_filter_by_keys.items():
             logger.info(f"  {key}: {value}")
 
@@ -152,9 +149,10 @@ def get_surface_winds(
             # Add global attributes
             ds.attrs.update(
                 {
-                    "title": "GFS 10m Surface Winds",
-                    "source": "NOAA NCEP GFS",
-                    "history": f"Generated on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC",
+                    "title": "GFS 10m Surface Winds (from catalog dataset)",
+                    "source": "NOAA NCEP GFS via NCAR THREDDS",
+                    "catalog_dataset": "gfs_surface_winds",
+                    "history": f"Generated on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC using dedicated catalog dataset",
                     "conventions": "CF-1.8",
                     "processing": "Calculated wind speed and direction from U and V components",
                 }
@@ -177,11 +175,11 @@ def get_surface_winds(
             if "step" in ds.coords and hasattr(ds.step, "size") and ds.step.size > 1:
                 output_file = os.path.join(
                     output_dir,
-                    f"gfs_surface_winds_{date_str}_f000-f{int(ds.step.max().values.astype('timedelta64[h]').astype(int)):03d}.nc",
+                    f"gfs_surface_winds_catalog_{date_str}_f000-f{int(ds.step.max().values.astype('timedelta64[h]').astype(int)):03d}.nc",
                 )
             else:
                 output_file = os.path.join(
-                    output_dir, f"gfs_surface_winds_{date_str}_{forecast_hour}.nc"
+                    output_dir, f"gfs_surface_winds_catalog_{date_str}_{forecast_hour}.nc"
                 )
 
             encoding = {var: {"zlib": True, "complevel": 4} for var in ds.data_vars}
@@ -233,14 +231,14 @@ def get_surface_winds(
             )
 
     except Exception as e:
-        logger.error(f"Error processing surface wind data: {e}", exc_info=True)
+        logger.error(f"Error processing surface wind data from catalog: {e}", exc_info=True)
         raise
 
 
 def main():
     """Main function to run the example."""
     try:
-        logger.info("=== GFS Surface Wind Data Example ===")
+        logger.info("=== GFS Surface Wind Data Example (Using Catalog Dataset) ===")
 
         # Use data from 7 days ago to ensure it's available (based on diagnostic testing)
         target_date = datetime.now(timezone.utc) - timedelta(days=7)
@@ -252,13 +250,14 @@ def main():
         forecast_hour = "f000"  # Analysis time
 
         logger.info(f"Processing cycle: {target_cycle}, forecast hour: {forecast_hour}")
+        logger.info("Using the dedicated gfs_surface_winds dataset from catalog")
 
-        # Get surface wind data with all available steps
-        output_file = get_surface_winds(
+        # Get surface wind data using the catalog dataset
+        output_file = get_surface_winds_from_catalog(
             cycle=target_cycle,
             forecast_hour=forecast_hour,
             output_dir="gfs_output",
-            include_all_steps=True,
+            max_lead_time=3,
         )
 
         logger.info(f"\nSuccess! Output saved to: {os.path.abspath(output_file)}")
@@ -267,6 +266,11 @@ def main():
         logger.info(f"ds = xr.open_dataset('{output_file}')")
         logger.info(f"# To access data for a specific forecast step:")
         logger.info(f"# step_data = ds.sel(step=ds.step[0])  # First forecast step")
+
+        logger.info("\nComparison with original example:")
+        logger.info("- This example uses the pre-configured gfs_surface_winds catalog dataset")
+        logger.info("- The original example uses gfs_forecast with manual filter configuration")
+        logger.info("- Both should produce equivalent results but this approach is simpler")
 
     except Exception as e:
         logger.error(f"Example failed: {e}", exc_info=True)

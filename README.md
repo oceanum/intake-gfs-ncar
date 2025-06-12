@@ -1,6 +1,6 @@
 # Intake GFS NCAR
 
-An [Intake](https://intake.readthedocs.io/) driver for accessing Global Forecast System (GFS) data from the NCAR NOMADS server.
+An [Intake](https://intake.readthedocs.io/) driver for accessing Global Forecast System (GFS) data from the NCAR THREDDS server.
 
 ## Features
 
@@ -46,7 +46,7 @@ print(ds)
 - `cycle`: Forecast cycle in ISO format (e.g., '2023-01-01T00:00:00') or 'latest'
 - `max_lead_time`: Maximum forecast lead time in hours (e.g., 24)
 - `cfgrib_filter_by_keys`: Dictionary of GRIB filter parameters (see below)
-- `base_url`: Base URL for the NOMADS server (defaults to NCAR's server)
+- `base_url`: Base URL for the NCAR THREDDS server (defaults to NCAR's THREDDS server)
 
 ### GRIB Filter Keys
 
