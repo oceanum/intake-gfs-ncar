@@ -7,7 +7,7 @@ forecast data from the NCAR THREDDS server.
 import logging
 import traceback
 from datetime import datetime, time, timezone
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import xarray as xr
@@ -34,14 +34,13 @@ class GFSForecastSource(DataSource):
 
     Parameters
     ----------
-    date_str : str or datetime-like
-        Forecast initialization date in 'YYYY-MM-DD' format or datetime object
-    max_lead_time_fXXX : str, optional
-        Maximum forecast lead time as 'fHHH' (e.g., 'f024' for 24 hours)
+    cycle : str or datetime-like, optional
+        Forecast initialization cycle. Can be 'latest' for most recent,
+        ISO format datetime string, or datetime object. Default: 'latest'
+    max_lead_time : int, optional
+        Maximum forecast lead time in hours. Default: 24
     base_url : str, optional
         Base URL for the NCAR THREDDS server
-    model_run_time : str or int, optional
-        Model run time in 'HH' format (e.g., '00' or 0 for 00Z run)
     cfgrib_filter_by_keys : dict, optional
         Dictionary of GRIB filter parameters (e.g., {'typeOfLevel': 'surface'})
     access_method : str, optional
@@ -58,18 +57,36 @@ class GFSForecastSource(DataSource):
     container = "xarray"
     partition_access = True
 
+    parameters = {
+        "cycle": {
+            "description": "Model cycle (forecast initialization time)",
+            "type": "str",
+            "default": "latest"
+        },
+        "max_lead_time": {
+            "description": "Maximum lead time to retrieve (hours)",
+            "type": "int", 
+            "default": 24
+        }
+    }
+
     def __init__(
         self,
-        cycle: Union[str, datetime] = "latest",
-        max_lead_time: int = 24,
         base_url: str = DEFAULT_BASE_URL,
         cfgrib_filter_by_keys: Optional[Dict[str, Any]] = None,
         access_method: str = "auto",
         ncss_params: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        cycle: str = "latest",
+        max_lead_time: int = 24,
         **kwargs,
     ):
         super().__init__(metadata=metadata or {})
+
+
+        # Handle "today" default for cycle parameter
+        if cycle == "today":
+            cycle = "latest"
 
         # Parse and validate cycle (date and model run time)
         try:
@@ -95,10 +112,25 @@ class GFSForecastSource(DataSource):
                         cycle_dt = pd.to_datetime(cycle)
                     self.date = cycle_dt.date()
                     self.model_run_time = cycle_dt.hour
+                    logger.info(
+                        f"Using specified cycle: {cycle_dt.isoformat()} ({self.model_run_time:02d}Z)"
+                    )
+            elif isinstance(cycle, datetime):
+                # Handle datetime objects directly
+                cycle_dt = cycle
+                self.date = cycle_dt.date()
+                self.model_run_time = cycle_dt.hour
+                logger.info(
+                    f"Using datetime cycle: {cycle_dt.isoformat()} ({self.model_run_time:02d}Z)"
+                )
             else:
+                # Handle pandas Timestamp and other datetime-like objects
                 cycle_dt = pd.to_datetime(cycle)
                 self.date = cycle_dt.date()
                 self.model_run_time = cycle_dt.hour
+                logger.info(
+                    f"Using parsed cycle: {cycle_dt.isoformat()} ({self.model_run_time:02d}Z)"
+                )
 
             # Validate model run time is valid
             if not (0 <= self.model_run_time <= 23):

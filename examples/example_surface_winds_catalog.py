@@ -114,7 +114,7 @@ def get_surface_winds_from_catalog(
         # Handle different variable naming conventions
         u_var = None
         v_var = None
-        
+
         # Check for NetCDF variable names (from NetcdfSubset)
         if "u-component_of_wind_height_above_ground" in ds and "v-component_of_wind_height_above_ground" in ds:
             u_var = ds["u-component_of_wind_height_above_ground"]
@@ -125,7 +125,7 @@ def get_surface_winds_from_catalog(
             u_var = ds["u10"]
             v_var = ds["v10"]
             logger.info("Found GRIB wind variables: u10, v10")
-        
+
         if u_var is not None and v_var is not None:
             logger.info("Calculating wind speed and direction...")
             ds["wind_speed"], ds["wind_direction"] = calculate_wind_speed_direction(
@@ -241,7 +241,7 @@ def main():
         logger.info("=== GFS Surface Wind Data Example (Using Catalog Dataset) ===")
 
         # Use data from 7 days ago to ensure it's available (based on diagnostic testing)
-        target_date = datetime.now(timezone.utc) - timedelta(days=7)
+        target_date = datetime.now(timezone.utc) - timedelta(days=2000)
         # Round to nearest 00, 06, 12, 18Z cycle
         hour = (target_date.hour // 6) * 6
         target_cycle = target_date.replace(
