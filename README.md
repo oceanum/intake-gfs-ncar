@@ -9,6 +9,8 @@ An [Intake](https://intake.readthedocs.io/) driver for accessing Global Forecast
 - Built on xarray and cfgrib for efficient handling of GRIB2 data
 - Supports both single files and time series of forecast files
 - Compatible with Dask for out-of-core computations
+- Uses NetCDF Subset Service (NCSS) for efficient data access
+- Includes pre-configured datasets for common variables (winds, ice concentration)
 
 ## Installation
 
@@ -59,6 +61,10 @@ You can filter the GRIB data using any of the following keys in the `cfgrib_filt
 
 ## Examples
 
+Check the `examples/` directory for complete working examples, including:
+- `example_surface_winds_catalog.py` - Surface wind analysis with automatic wind speed/direction calculation
+- `example_ice_concentration_catalog.py` - Sea ice concentration analysis with polar region statistics
+
 ### Get 500 hPa geopotential height
 
 ```python
@@ -88,27 +94,36 @@ source = cat.gfs_forecast(
 
 ### Predefined Datasets
 
-The catalog also includes predefined datasets with common filter configurations:
+The catalog also includes predefined datasets with common filter configurations that use NetCDF Subset Service for efficient access:
 
 #### Surface Winds
 
 ```python
-# Get 10m wind components (u10, v10)
+# Get 10m wind components (u10, v10) with pre-configured filters
 source = cat.gfs_surface_winds(
     cycle="2023-01-01T00:00:00",
     max_lead_time=24
 )
+ds = source.read()
+# Variables: u10, v10 (automatically standardized from NetCDF names)
 ```
 
 #### Sea Ice Concentration
 
 ```python
-# Get sea ice concentration data
+# Get sea ice concentration data optimized for polar regions
 source = cat.gfs_ice_concentration(
     cycle="2023-01-01T00:00:00",
     max_lead_time=24
 )
+ds = source.read()
+# Variable: ci (sea ice concentration, 0.0-1.0)
 ```
+
+These predefined datasets automatically handle:
+- Variable name standardization between NetCDF and GRIB formats
+- Optimal access method selection (NetCDF Subset Service)
+- Pre-configured filters for common use cases
 
 ## Development
 

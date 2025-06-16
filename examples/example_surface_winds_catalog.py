@@ -20,7 +20,6 @@ from datetime import datetime, timedelta, timezone
 
 import intake
 import numpy as np
-import xarray as xr
 
 # Set up logging
 logging.basicConfig(
@@ -92,7 +91,7 @@ def get_surface_winds_from_catalog(
         # Use the dedicated gfs_surface_winds dataset
         # This dataset is pre-configured with the appropriate filters for 10m wind components
         logger.info("Using dedicated gfs_surface_winds dataset from catalog")
-        source = cat.gfs_surface_winds(
+        source = cat["gfs_surface_winds"](
             cycle=cycle,
             max_lead_time=max_lead_time,
         )
@@ -262,10 +261,10 @@ def main():
 
         logger.info(f"\nSuccess! Output saved to: {os.path.abspath(output_file)}")
         logger.info("\nTo load this data in Python, use:")
-        logger.info(f"import xarray as xr")
-        logger.info(f"ds = xr.open_dataset('{output_file}')")
-        logger.info(f"# To access data for a specific forecast step:")
-        logger.info(f"# step_data = ds.sel(step=ds.step[0])  # First forecast step")
+        logger.info("import xarray as xr")
+        logger.info("ds = xr.open_dataset('%s')", output_file)
+        logger.info("# To access data for a specific forecast step:")
+        logger.info("# step_data = ds.sel(step=ds.step[0])  # First forecast step")
 
         logger.info("\nComparison with original example:")
         logger.info("- This example uses the pre-configured gfs_surface_winds catalog dataset")
