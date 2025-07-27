@@ -115,10 +115,15 @@ def get_surface_winds_from_catalog(
         v_var = None
 
         # Check for NetCDF variable names (from NetcdfSubset)
-        if "u-component_of_wind_height_above_ground" in ds and "v-component_of_wind_height_above_ground" in ds:
+        if (
+            "u-component_of_wind_height_above_ground" in ds
+            and "v-component_of_wind_height_above_ground" in ds
+        ):
             u_var = ds["u-component_of_wind_height_above_ground"]
             v_var = ds["v-component_of_wind_height_above_ground"]
-            logger.info("Found NetCDF wind variables: u-component_of_wind_height_above_ground, v-component_of_wind_height_above_ground")
+            logger.info(
+                "Found NetCDF wind variables: u-component_of_wind_height_above_ground, v-component_of_wind_height_above_ground"
+            )
         # Check for GRIB variable names (from fileServer/cfgrib)
         elif "u10" in ds and "v10" in ds:
             u_var = ds["u10"]
@@ -178,7 +183,8 @@ def get_surface_winds_from_catalog(
                 )
             else:
                 output_file = os.path.join(
-                    output_dir, f"gfs_surface_winds_catalog_{date_str}_{forecast_hour}.nc"
+                    output_dir,
+                    f"gfs_surface_winds_catalog_{date_str}_{forecast_hour}.nc",
                 )
 
             encoding = {var: {"zlib": True, "complevel": 4} for var in ds.data_vars}
@@ -230,7 +236,9 @@ def get_surface_winds_from_catalog(
             )
 
     except Exception as e:
-        logger.error(f"Error processing surface wind data from catalog: {e}", exc_info=True)
+        logger.error(
+            f"Error processing surface wind data from catalog: {e}", exc_info=True
+        )
         raise
 
 
@@ -267,9 +275,15 @@ def main():
         logger.info("# step_data = ds.sel(step=ds.step[0])  # First forecast step")
 
         logger.info("\nComparison with original example:")
-        logger.info("- This example uses the pre-configured gfs_surface_winds catalog dataset")
-        logger.info("- The original example uses gfs_forecast with manual filter configuration")
-        logger.info("- Both should produce equivalent results but this approach is simpler")
+        logger.info(
+            "- This example uses the pre-configured gfs_surface_winds catalog dataset"
+        )
+        logger.info(
+            "- The original example uses gfs_forecast with manual filter configuration"
+        )
+        logger.info(
+            "- Both should produce equivalent results but this approach is simpler"
+        )
 
     except Exception as e:
         logger.error(f"Example failed: {e}", exc_info=True)

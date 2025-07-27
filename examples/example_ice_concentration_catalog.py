@@ -96,8 +96,12 @@ def get_statistics_summary(ds, var_name="ice_concentration"):
         "max": float(ice_data.max().values),
         "mean": float(ice_data.mean().values),
         "std": float(ice_data.std().values),
-        "ice_covered_fraction": float((ice_data > 0.15).sum() / ice_data.size),  # Fraction with >15% ice cover
-        "fully_covered_fraction": float((ice_data > 0.85).sum() / ice_data.size),  # Fraction with >85% ice cover
+        "ice_covered_fraction": float(
+            (ice_data > 0.15).sum() / ice_data.size
+        ),  # Fraction with >15% ice cover
+        "fully_covered_fraction": float(
+            (ice_data > 0.85).sum() / ice_data.size
+        ),  # Fraction with >85% ice cover
     }
 
     return stats
@@ -196,7 +200,8 @@ def get_ice_concentration_from_catalog(
             )
         else:
             output_file = os.path.join(
-                output_dir, f"gfs_ice_concentration_catalog_{date_str}_{forecast_hour}.nc"
+                output_dir,
+                f"gfs_ice_concentration_catalog_{date_str}_{forecast_hour}.nc",
             )
 
         encoding = {var: {"zlib": True, "complevel": 4} for var in ds.data_vars}
@@ -235,20 +240,28 @@ def get_ice_concentration_from_catalog(
                     f"Ice concentration range: {stats['min']:.3f} to {stats['max']:.3f}"
                 )
                 logger.info(f"Mean ice concentration: {stats['mean']:.3f}")
-                logger.info(f"Grid cells with >15% ice cover: {stats['ice_covered_fraction']:.1%}")
-                logger.info(f"Grid cells with >85% ice cover: {stats['fully_covered_fraction']:.1%}")
+                logger.info(
+                    f"Grid cells with >15% ice cover: {stats['ice_covered_fraction']:.1%}"
+                )
+                logger.info(
+                    f"Grid cells with >85% ice cover: {stats['fully_covered_fraction']:.1%}"
+                )
 
         return output_file
 
     except Exception as e:
-        logger.error(f"Error processing ice concentration data from catalog: {e}", exc_info=True)
+        logger.error(
+            f"Error processing ice concentration data from catalog: {e}", exc_info=True
+        )
         raise
 
 
 def main():
     """Main function to run the example."""
     try:
-        logger.info("=== GFS Sea Ice Concentration Data Example (Using Catalog Dataset) ===")
+        logger.info(
+            "=== GFS Sea Ice Concentration Data Example (Using Catalog Dataset) ==="
+        )
 
         # Use data from a few days ago to ensure it's available
         target_date = datetime.now(timezone.utc) - timedelta(days=2)
@@ -280,15 +293,25 @@ def main():
         logger.info("# step_data = ds.sel(step=ds.step[0])  # First forecast step")
 
         logger.info("\nUsage notes:")
-        logger.info("- Ice concentration values range from 0.0 (no ice) to 1.0 (completely covered)")
+        logger.info(
+            "- Ice concentration values range from 0.0 (no ice) to 1.0 (completely covered)"
+        )
         logger.info("- Values >0.15 typically indicate significant ice coverage")
-        logger.info("- This data is most relevant for polar regions (Arctic and Antarctic)")
+        logger.info(
+            "- This data is most relevant for polar regions (Arctic and Antarctic)"
+        )
         logger.info("- Winter months typically show higher ice concentrations")
 
         logger.info("\nComparison with surface winds example:")
-        logger.info("- This example uses the pre-configured gfs_ice_concentration catalog dataset")
-        logger.info("- The original approach would use gfs_forecast with manual filter configuration")
-        logger.info("- Both should produce equivalent results but this approach is simpler")
+        logger.info(
+            "- This example uses the pre-configured gfs_ice_concentration catalog dataset"
+        )
+        logger.info(
+            "- The original approach would use gfs_forecast with manual filter configuration"
+        )
+        logger.info(
+            "- Both should produce equivalent results but this approach is simpler"
+        )
 
     except Exception as e:
         logger.error(f"Example failed: {e}", exc_info=True)

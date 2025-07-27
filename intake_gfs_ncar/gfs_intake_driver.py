@@ -61,13 +61,13 @@ class GFSForecastSource(DataSource):
         "cycle": {
             "description": "Model cycle (forecast initialization time)",
             "type": "str",
-            "default": "latest"
+            "default": "latest",
         },
         "max_lead_time": {
             "description": "Maximum lead time to retrieve (hours)",
             "type": "int",
-            "default": 24
-        }
+            "default": 24,
+        },
     }
 
     def __init__(
@@ -82,7 +82,6 @@ class GFSForecastSource(DataSource):
         **kwargs,
     ):
         super().__init__(metadata=metadata or {})
-
 
         # Handle "today" default for cycle parameter
         if cycle == "today":
@@ -234,7 +233,9 @@ class GFSForecastSource(DataSource):
 
         return urls
 
-    def _build_file_url(self, date_str: str, model_run_time_str: str, lead_time: int) -> str:
+    def _build_file_url(
+        self, date_str: str, model_run_time_str: str, lead_time: int
+    ) -> str:
         """Build URL for a specific forecast file based on access method."""
         file_path = f"files/g/d084001/{date_str[:4]}/{date_str}/gfs.0p25.{date_str}{model_run_time_str}.f{lead_time:03d}.grib2"
 
@@ -260,18 +261,18 @@ class GFSForecastSource(DataSource):
         if self.cfgrib_filter_by_keys:
             # Map common cfgrib keys to NetcdfSubset variable names
             var_mapping = {
-                '2t': 'Temperature_height_above_ground',
-                't2m': 'Temperature_height_above_ground',
-                '10u': 'u-component_of_wind_height_above_ground',
-                '10v': 'v-component_of_wind_height_above_ground',
-                'msl': 'Pressure_reduced_to_MSL_msl',
-                'sp': 'Surface_pressure_surface',
-                'ci': 'Ice_cover_surface',
+                "2t": "Temperature_height_above_ground",
+                "t2m": "Temperature_height_above_ground",
+                "10u": "u-component_of_wind_height_above_ground",
+                "10v": "v-component_of_wind_height_above_ground",
+                "msl": "Pressure_reduced_to_MSL_msl",
+                "sp": "Surface_pressure_surface",
+                "ci": "Ice_cover_surface",
             }
 
             # Try to map variables
-            if 'shortName' in self.cfgrib_filter_by_keys:
-                short_names = self.cfgrib_filter_by_keys['shortName']
+            if "shortName" in self.cfgrib_filter_by_keys:
+                short_names = self.cfgrib_filter_by_keys["shortName"]
                 if isinstance(short_names, str):
                     short_names = [short_names]
 
@@ -281,19 +282,19 @@ class GFSForecastSource(DataSource):
                         vars_to_add.append(var_mapping[short_name])
 
                 if vars_to_add:
-                    params['var'] = ','.join(vars_to_add)
+                    params["var"] = ",".join(vars_to_add)
 
             # Handle level selections
-            if 'level' in self.cfgrib_filter_by_keys:
-                level = self.cfgrib_filter_by_keys['level']
-                if 'typeOfLevel' in self.cfgrib_filter_by_keys:
-                    level_type = self.cfgrib_filter_by_keys['typeOfLevel']
-                    if level_type == 'heightAboveGround':
-                        params['vertCoord'] = f"{level}"
+            if "level" in self.cfgrib_filter_by_keys:
+                level = self.cfgrib_filter_by_keys["level"]
+                if "typeOfLevel" in self.cfgrib_filter_by_keys:
+                    level_type = self.cfgrib_filter_by_keys["typeOfLevel"]
+                    if level_type == "heightAboveGround":
+                        params["vertCoord"] = f"{level}"
 
         # Set default format to netcdf if not specified
-        if 'format' not in params:
-            params['format'] = 'netcdf'
+        if "format" not in params:
+            params["format"] = "netcdf"
 
         # Build query string
         if params:
@@ -516,7 +517,9 @@ class GFSForecastSource(DataSource):
 
             # Provide helpful suggestions based on error type
             if "404" in str(e) or "Not Found" in str(e):
-                logger.info(f"Partition {i} data may not be available. This could be due to:")
+                logger.info(
+                    f"Partition {i} data may not be available. This could be due to:"
+                )
                 logger.info("  - Recent forecast times that haven't been published yet")
                 logger.info("  - Archived data that's no longer available")
                 logger.info("  - Incorrect date/time specification")
@@ -544,9 +547,13 @@ class GFSForecastSource(DataSource):
                 urllib.request.urlretrieve(url, tmp_path)
             except urllib.error.HTTPError as e:
                 if e.code == 404:
-                    raise IOError(f"Data not found (HTTP 404): {url}. This forecast time may not be available yet or may have been archived.")
+                    raise IOError(
+                        f"Data not found (HTTP 404): {url}. This forecast time may not be available yet or may have been archived."
+                    )
                 elif e.code == 400:
-                    raise IOError(f"Bad request (HTTP 400): {url}. Check variable names and query parameters.")
+                    raise IOError(
+                        f"Bad request (HTTP 400): {url}. Check variable names and query parameters."
+                    )
                 else:
                     raise IOError(f"HTTP Error {e.code}: {e.reason} for URL: {url}")
             except urllib.error.URLError as e:
@@ -556,12 +563,17 @@ class GFSForecastSource(DataSource):
             if not os.path.exists(tmp_path) or os.path.getsize(tmp_path) == 0:
                 raise IOError(f"Failed to download NetCDF file from {url}")
 
-            logger.info("Successfully downloaded NetCDF file, size: %d bytes", os.path.getsize(tmp_path))
+            logger.info(
+                "Successfully downloaded NetCDF file, size: %d bytes",
+                os.path.getsize(tmp_path),
+            )
 
             # Open with xarray netcdf4 engine
             ds = xr.open_dataset(tmp_path, engine="netcdf4")
 
-            logger.info(f"Successfully opened NetCDF dataset with variables: {list(ds.variables.keys())}")
+            logger.info(
+                f"Successfully opened NetCDF dataset with variables: {list(ds.variables.keys())}"
+            )
             logger.info(f"Dataset dimensions: {dict(ds.sizes)}")
 
             # Add metadata
@@ -701,23 +713,23 @@ class GFSForecastSource(DataSource):
         """
         # Mapping from NetCDF names (NetcdfSubset) to GRIB-style names
         name_mapping = {
-            'Temperature_height_above_ground': 't2m',  # 2m temperature
-            'u-component_of_wind_height_above_ground': 'u10',  # 10m u-wind
-            'v-component_of_wind_height_above_ground': 'v10',  # 10m v-wind
-            'Pressure_reduced_to_MSL_msl': 'msl',  # Mean sea level pressure
-            'Surface_pressure_surface': 'sp',  # Surface pressure
-            'Relative_humidity_height_above_ground': 'r2',  # 2m relative humidity
-            'Specific_humidity_height_above_ground': 'q2',  # 2m specific humidity
-            'Dewpoint_temperature_height_above_ground': 'd2m',  # 2m dewpoint
-            'Total_precipitation_surface': 'tp',  # Total precipitation
-            'Convective_precipitation_surface': 'cp',  # Convective precipitation
-            'Snowfall_rate_water_equivalent_surface': 'sf',  # Snowfall
-            'Geopotential_height_isobaric': 'gh',  # Geopotential height
-            'Temperature_isobaric': 't',  # Temperature on pressure levels
-            'u-component_of_wind_isobaric': 'u',  # U-wind on pressure levels
-            'v-component_of_wind_isobaric': 'v',  # V-wind on pressure levels
-            'Relative_humidity_isobaric': 'r',  # Relative humidity on pressure levels
-            'Ice_cover_surface': 'ci',  # Sea ice concentration
+            "Temperature_height_above_ground": "t2m",  # 2m temperature
+            "u-component_of_wind_height_above_ground": "u10",  # 10m u-wind
+            "v-component_of_wind_height_above_ground": "v10",  # 10m v-wind
+            "Pressure_reduced_to_MSL_msl": "msl",  # Mean sea level pressure
+            "Surface_pressure_surface": "sp",  # Surface pressure
+            "Relative_humidity_height_above_ground": "r2",  # 2m relative humidity
+            "Specific_humidity_height_above_ground": "q2",  # 2m specific humidity
+            "Dewpoint_temperature_height_above_ground": "d2m",  # 2m dewpoint
+            "Total_precipitation_surface": "tp",  # Total precipitation
+            "Convective_precipitation_surface": "cp",  # Convective precipitation
+            "Snowfall_rate_water_equivalent_surface": "sf",  # Snowfall
+            "Geopotential_height_isobaric": "gh",  # Geopotential height
+            "Temperature_isobaric": "t",  # Temperature on pressure levels
+            "u-component_of_wind_isobaric": "u",  # U-wind on pressure levels
+            "v-component_of_wind_isobaric": "v",  # V-wind on pressure levels
+            "Relative_humidity_isobaric": "r",  # Relative humidity on pressure levels
+            "Ice_cover_surface": "ci",  # Sea ice concentration
         }
 
         # Create a copy to avoid modifying the original
@@ -737,8 +749,12 @@ class GFSForecastSource(DataSource):
         # NetcdfSubset sometimes returns 'time', 'time1', 'time2', etc.
         time_coords_to_rename = {}
         for coord_name in ds_renamed.coords:
-            if isinstance(coord_name, str) and coord_name.startswith('time') and coord_name != 'time':
-                time_coords_to_rename[coord_name] = 'time'
+            if (
+                isinstance(coord_name, str)
+                and coord_name.startswith("time")
+                and coord_name != "time"
+            ):
+                time_coords_to_rename[coord_name] = "time"
                 logger.debug(f"Renaming time coordinate: {coord_name} → time")
 
         if time_coords_to_rename:
@@ -749,25 +765,26 @@ class GFSForecastSource(DataSource):
         # 1. If 'reftime2' exists and 'reftime' does not, rename 'reftime2' to 'reftime'
         # 2. If both exist, drop 'reftime2' and keep 'reftime'
         # 3. If neither exist, inject 'reftime' as a scalar coordinate (model init time)
-        reftime_in_coords = 'reftime' in ds_renamed.coords
-        reftime2_in_coords = 'reftime2' in ds_renamed.coords
+        reftime_in_coords = "reftime" in ds_renamed.coords
+        reftime2_in_coords = "reftime2" in ds_renamed.coords
 
         if reftime2_in_coords and not reftime_in_coords:
             logger.debug("Renaming 'reftime2' coordinate to 'reftime'")
-            ds_renamed = ds_renamed.rename({'reftime2': 'reftime'})
+            ds_renamed = ds_renamed.rename({"reftime2": "reftime"})
         elif reftime2_in_coords and reftime_in_coords:
             logger.debug("Dropping duplicate 'reftime2' coordinate, keeping 'reftime'")
-            ds_renamed = ds_renamed.drop_vars('reftime2')
+            ds_renamed = ds_renamed.drop_vars("reftime2")
         elif not reftime_in_coords and not reftime2_in_coords:
             # Inject 'reftime' as a scalar coordinate using model initialization time
             # Try to get from attributes, fallback to now
             import numpy as np
             from datetime import datetime, timezone
+
             reftime_value = None
             # Try to get from attrs
-            if 'cycle' in ds_renamed.attrs:
+            if "cycle" in ds_renamed.attrs:
                 try:
-                    reftime_value = np.datetime64(ds_renamed.attrs['cycle'])
+                    reftime_value = np.datetime64(ds_renamed.attrs["cycle"])
                 except Exception:
                     pass
             if reftime_value is None:
@@ -778,9 +795,11 @@ class GFSForecastSource(DataSource):
 
         # Log standardization results
         if renamed_vars:
-            logger.info(f"Standardized {len(renamed_vars)} variable names: {renamed_vars}")
+            logger.info(
+                f"Standardized {len(renamed_vars)} variable names: {renamed_vars}"
+            )
             # Add metadata about the renaming (convert dict to string for NetCDF compatibility)
-            ds_renamed.attrs['variable_name_standardization'] = str(renamed_vars)
+            ds_renamed.attrs["variable_name_standardization"] = str(renamed_vars)
 
         return ds_renamed
 
@@ -914,7 +933,7 @@ class GFSForecastSource(DataSource):
         ds = self.read()
 
         # If the dataset already uses dask arrays, return it as-is
-        if any(hasattr(var.data, 'chunks') for var in ds.data_vars.values()):
+        if any(hasattr(var.data, "chunks") for var in ds.data_vars.values()):
             return ds
 
         # Otherwise, chunk the dataset to use dask arrays

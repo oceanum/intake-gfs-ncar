@@ -117,18 +117,23 @@ def get_surface_winds(
         # Handle different variable naming conventions
         u_var = None
         v_var = None
-        
+
         # Check for NetCDF variable names (from NetcdfSubset)
-        if "u-component_of_wind_height_above_ground" in ds and "v-component_of_wind_height_above_ground" in ds:
+        if (
+            "u-component_of_wind_height_above_ground" in ds
+            and "v-component_of_wind_height_above_ground" in ds
+        ):
             u_var = ds["u-component_of_wind_height_above_ground"]
             v_var = ds["v-component_of_wind_height_above_ground"]
-            logger.info("Found NetCDF wind variables: u-component_of_wind_height_above_ground, v-component_of_wind_height_above_ground")
+            logger.info(
+                "Found NetCDF wind variables: u-component_of_wind_height_above_ground, v-component_of_wind_height_above_ground"
+            )
         # Check for GRIB variable names (from fileServer/cfgrib)
         elif "u10" in ds and "v10" in ds:
             u_var = ds["u10"]
             v_var = ds["v10"]
             logger.info("Found GRIB wind variables: u10, v10")
-        
+
         if u_var is not None and v_var is not None:
             logger.info("Calculating wind speed and direction...")
             ds["wind_speed"], ds["wind_direction"] = calculate_wind_speed_direction(
