@@ -745,6 +745,37 @@ class GFSForecastSource(DataSource):
             ds_renamed = ds_renamed.rename(time_coords_to_rename)
             logger.info(f"Standardized time coordinates: {time_coords_to_rename}")
 
+        # --- Standardize reftime coordinate ---
+        # 1. If 'reftime2' exists and 'reftime' does not, rename 'reftime2' to 'reftime'
+        # 2. If both exist, drop 'reftime2' and keep 'reftime'
+        # 3. If neither exist, inject 'reftime' as a scalar coordinate (model init time)
+        reftime_in_coords = 'reftime' in ds_renamed.coords
+        reftime2_in_coords = 'reftime2' in ds_renamed.coords
+
+        if reftime2_in_coords and not reftime_in_coords:
+            logger.debug("Renaming 'reftime2' coordinate to 'reftime'")
+            ds_renamed = ds_renamed.rename({'reftime2': 'reftime'})
+        elif reftime2_in_coords and reftime_in_coords:
+            logger.debug("Dropping duplicate 'reftime2' coordinate, keeping 'reftime'")
+            ds_renamed = ds_renamed.drop_vars('reftime2')
+        elif not reftime_in_coords and not reftime2_in_coords:
+            # Inject 'reftime' as a scalar coordinate using model initialization time
+            # Try to get from attributes, fallback to now
+            import numpy as np
+            from datetime import datetime, timezone
+            reftime_value = None
+            # Try to get from attrs
+            if 'cycle' in ds_renamed.attrs:
+                try:
+                    reftime_value = np.datetime64(ds_renamed.attrs['cycle'])
+                except Exception:
+                    pass
+            if reftime_value is None:
+                # Fallback: use now (not ideal, but better than missing)
+                reftime_value = np.datetime64(datetime.now(timezone.utc))
+            logger.debug(f"Injecting missing 'reftime' coordinate: {reftime_value}")
+            ds_renamed = ds_renamed.assign_coords(reftime=((), reftime_value))
+
         # Log standardization results
         if renamed_vars:
             logger.info(f"Standardized {len(renamed_vars)} variable names: {renamed_vars}")
