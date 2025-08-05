@@ -16,12 +16,12 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 import intake
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
 
 # Set up logging
 logging.basicConfig(

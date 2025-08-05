@@ -1,9 +1,10 @@
 """Test catalog parameter functionality for GFS intake driver."""
 
-import pytest
-import intake
 import os
 from datetime import datetime
+
+import intake
+import pytest
 
 
 class TestCatalogParameters:

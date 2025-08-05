@@ -1,7 +1,9 @@
 """Unit tests for GFS intake driver parameters functionality."""
 
-import pytest
 from datetime import datetime, timezone
+
+import pytest
+
 from intake_gfs_ncar.gfs_intake_driver import GFSForecastSource
 
 
