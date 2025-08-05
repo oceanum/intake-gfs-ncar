@@ -55,7 +55,7 @@ def calculate_wind_speed_direction(u, v):
 
 
 def get_surface_winds_from_catalog(
-    cycle, forecast_hour="f000", output_dir="gfs_output", max_lead_time=3
+    cycle, forecast_hour="f000", output_dir="gfs_output", max_lead_time=12
 ):
     """Download and process GFS surface wind data using the dedicated catalog dataset.
 
@@ -248,7 +248,9 @@ def main():
         logger.info("=== GFS Surface Wind Data Example (Using Catalog Dataset) ===")
 
         # Use data from 7 days ago to ensure it's available (based on diagnostic testing)
-        target_date = datetime.now(timezone.utc) - timedelta(days=2000)
+        # target_date = datetime.now(timezone.utc) - timedelta(days=2000)
+        # Use a fixed date for troubleshooting
+        target_date = datetime(2019, 3, 16, 12)
         # Round to nearest 00, 06, 12, 18Z cycle
         hour = (target_date.hour // 6) * 6
         target_cycle = target_date.replace(
@@ -264,7 +266,7 @@ def main():
             cycle=target_cycle,
             forecast_hour=forecast_hour,
             output_dir="gfs_output",
-            max_lead_time=3,
+            max_lead_time=12,
         )
 
         logger.info(f"\nSuccess! Output saved to: {os.path.abspath(output_file)}")

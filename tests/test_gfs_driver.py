@@ -23,9 +23,12 @@ logger = logging.getLogger(__name__)
 
 # Use a recent date (yesterday) to ensure data is available
 # GFS data is typically available for about 10 days
-TEST_DATE = (datetime.now(timezone.utc) - timedelta(days=1)).strftime(
-    "%Y%m%d"
-)  # Format: YYYYMMDD
+# TEST_DATE = (datetime.now(timezone.utc) - timedelta(days=1)).strftime(
+#     "%Y%m%d"
+# )  # Format: YYYYMMDD
+TEST_DATE = datetime(2019, 3, 16, 12).strftime(
+    "%Y%m%dT%H:00:00"
+)  # Format: YYYYMMDDTH:00:00
 
 
 class TestGFSDriver(unittest.TestCase):
@@ -78,7 +81,7 @@ class TestGFSDriver(unittest.TestCase):
         # Create source with more permissive parameters and use a more recent date
         try:
             source = GFSForecastSource(
-                cycle=TEST_DATE + "T00:00:00",
+                cycle=TEST_DATE,
                 max_lead_time=3,
                 base_url="https://thredds.rda.ucar.edu/thredds/dodsC/files/g/d084001",
                 cfgrib_filter_by_keys={"typeOfLevel": "surface"},
@@ -139,7 +142,7 @@ class TestGFSDriver(unittest.TestCase):
         try:
             # Create source with more permissive parameters and use a more recent date
             source = GFSForecastSource(
-                cycle=TEST_DATE + "T00:00:00",
+                cycle=TEST_DATE,
                 max_lead_time=3,  # Only request first forecast step
                 base_url="https://thredds.rda.ucar.edu/thredds/dodsC/files/g/d084001",
                 cfgrib_filter_by_keys={"typeOfLevel": "surface"},

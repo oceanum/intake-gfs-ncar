@@ -533,8 +533,8 @@ class GFSForecastSource(DataSource):
             # Create a temporary file to download the NetCDF file
             import os
             import tempfile
-            import urllib.request
             import urllib.error
+            import urllib.request
 
             logger.info(f"Downloading NetCDF data from NetcdfSubset: {url}")
 
@@ -777,8 +777,9 @@ class GFSForecastSource(DataSource):
         elif not reftime_in_coords and not reftime2_in_coords:
             # Inject 'reftime' as a scalar coordinate using model initialization time
             # Try to get from attributes, fallback to now
-            import numpy as np
             from datetime import datetime, timezone
+
+            import numpy as np
 
             reftime_value = None
             # Try to get from attrs
@@ -912,6 +913,10 @@ class GFSForecastSource(DataSource):
                             f"Time range: {self._ds.time.values.min()} to {self._ds.time.values.max()}"
                         )
 
+                self._ds = self._ds.squeeze()
+                self._ds = self._ds.drop("height_above_ground4", errors="ignore")
+                self._ds = self._ds.drop("reftime", errors="ignore")
+                self._ds = self._ds.drop("reftime2", errors="ignore")
                 return self._ds
 
             except Exception as e:
